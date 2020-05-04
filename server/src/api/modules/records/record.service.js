@@ -1,6 +1,6 @@
 const _ = require('lodash');
 const PERIODS = require('../../constants/periods');
-const { SKILLS, ALL_METRICS } = require('../../constants/metrics');
+const { SKILLS, ACTIVITIES, BOSSES, ALL_METRICS } = require('../../constants/metrics');
 const { BadRequestError } = require('../../errors');
 const { Player, Record } = require('../../../database');
 const deltaService = require('../deltas/delta.service');
@@ -22,20 +22,49 @@ async function syncRecords(playerId, period) {
 
   const delta = await deltaService.getDelta(playerId, period);
 
-  await Promise.all(
-    SKILLS.map(async metric => {
-      const [record] = await Record.findOrCreate({ where: { playerId, period, metric } });
-      const newValue = delta.data[metric].experience.delta;
+  // Skill records synchronizations
+  const skillSyncs = SKILLS.map(async metric => {
+    const [record] = await Record.findOrCreate({ where: { playerId, period, metric } });
+    const newValue = delta.data[metric].experience.delta;
 
-      // If the current delta is higher than the previous record,
-      // update the previous record's value
-      if (record.value < newValue) {
-        await record.update({ value: newValue });
-      }
+    // If the current delta is higher than the previous record,
+    // update the previous record's value
+    if (record.value < newValue) {
+      await record.update({ value: newValue });
+    }
 
-      return record;
-    })
-  );
+    return record;
+  });
+
+  // Activity records synchronizations
+  const activitySyncs = ACTIVITIES.map(async metric => {
+    const [record] = await Record.findOrCreate({ where: { playerId, period, metric } });
+    const newValue = delta.data[metric].score.delta;
+
+    // If the current delta is higher than the previous record,
+    // update the previous record's value
+    if (record.value < newValue) {
+      await record.update({ value: newValue });
+    }
+
+    return record;
+  });
+
+  // Boss records synchronizations
+  const bossSyncs = BOSSES.map(async metric => {
+    const [record] = await Record.findOrCreate({ where: { playerId, period, metric } });
+    const newValue = delta.data[metric].kills.delta;
+
+    // If the current delta is higher than the previous record,
+    // update the previous record's value
+    if (record.value < newValue) {
+      await record.update({ value: newValue });
+    }
+
+    return record;
+  });
+
+  await Promise.all([...skillSyncs, ...activitySyncs, ...bossSyncs]);
 }
 
 /**
